@@ -17,6 +17,7 @@ import {
   warrantyIdParamSchema,
 } from "../../validators/sub_admin/warranties";
 import { bulkDeleteSchema } from "../../validators/sub_admin/common";
+import { uploadSingleImage } from "../../middlewares/upload";
 
 const router = Router();
 
@@ -26,8 +27,8 @@ router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(
 router.get("/", checkOnlyAdmin(), catchAsync(getAllWarranties));
 router.get("/select", checkOnlyAdmin(), catchAsync(getWarrantiesSelection));
 router.get("/:id", checkOnlyAdmin(), validate(warrantyIdParamSchema), catchAsync(getWarrantyById));
-router.post("/", checkOnlyAdmin(), validate(createWarrantySchema), catchAsync(createWarranty));
-router.put("/:id", checkOnlyAdmin(), validate(updateWarrantySchema), catchAsync(updateWarranty));
+router.post("/", checkOnlyAdmin(), uploadSingleImage("logo"), validate(createWarrantySchema), catchAsync(createWarranty));
+router.put("/:id", checkOnlyAdmin(), uploadSingleImage("logo"), validate(updateWarrantySchema), catchAsync(updateWarranty));
 router.delete("/:id", checkOnlyAdmin(), validate(warrantyIdParamSchema), catchAsync(deleteWarranty));
 
 export default router;

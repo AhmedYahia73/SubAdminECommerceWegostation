@@ -17,6 +17,7 @@ import {
   customerIdParamSchema,
 } from "../../validators/sub_admin/customers";
 import { bulkDeleteSchema } from "../../validators/sub_admin/common";
+import { uploadSingleImage } from "../../middlewares/upload";
 
 const router = Router();
 
@@ -26,8 +27,8 @@ router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(
 router.get("/", checkOnlyAdmin(), catchAsync(getAllCustomers));
 router.get("/select", checkOnlyAdmin(), catchAsync(getCustomersSelection));
 router.get("/:id", checkOnlyAdmin(), validate(customerIdParamSchema), catchAsync(getCustomerById));
-router.post("/", checkOnlyAdmin(), validate(createCustomerSchema), catchAsync(createCustomer));
-router.put("/:id", checkOnlyAdmin(), validate(updateCustomerSchema), catchAsync(updateCustomer));
+router.post("/", checkOnlyAdmin(), uploadSingleImage("image"), validate(createCustomerSchema), catchAsync(createCustomer));
+router.put("/:id", checkOnlyAdmin(), uploadSingleImage("image"), validate(updateCustomerSchema), catchAsync(updateCustomer));
 router.delete("/:id", checkOnlyAdmin(), validate(customerIdParamSchema), catchAsync(deleteCustomer));
 
 export default router;

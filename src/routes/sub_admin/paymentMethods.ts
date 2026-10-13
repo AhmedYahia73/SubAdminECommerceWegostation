@@ -17,6 +17,7 @@ import {
   paymentMethodIdParamSchema,
 } from "../../validators/sub_admin/paymentMethods";
 import { bulkDeleteSchema } from "../../validators/sub_admin/common";
+import { uploadSingleImage } from "../../middlewares/upload";
 
 const router = Router();
 
@@ -26,8 +27,8 @@ router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(
 router.get("/", checkOnlyAdmin(), catchAsync(getAllPaymentMethods));
 router.get("/select", checkOnlyAdmin(), catchAsync(getPaymentMethodsSelection));
 router.get("/:id", checkOnlyAdmin(), validate(paymentMethodIdParamSchema), catchAsync(getPaymentMethodById));
-router.post("/", checkOnlyAdmin(), validate(createPaymentMethodSchema), catchAsync(createPaymentMethod));
-router.put("/:id", checkOnlyAdmin(), validate(updatePaymentMethodSchema), catchAsync(updatePaymentMethod));
+router.post("/", checkOnlyAdmin(), uploadSingleImage("icon"), validate(createPaymentMethodSchema), catchAsync(createPaymentMethod));
+router.put("/:id", checkOnlyAdmin(), uploadSingleImage("icon"), validate(updatePaymentMethodSchema), catchAsync(updatePaymentMethod));
 router.delete("/:id", checkOnlyAdmin(), validate(paymentMethodIdParamSchema), catchAsync(deletePaymentMethod));
 
 export default router;

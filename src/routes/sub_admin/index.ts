@@ -17,6 +17,8 @@ import paymentMethodsRouter from "./paymentMethods";
 import addressesRouter from "./addresses";
 import productsRouter from "./products";
 import attributesRouter from "./attributes";
+import popupsRouter from "./popups";
+import uploadRouter from "../upload";
 
 const router = Router();
 
@@ -40,5 +42,7 @@ router.use("/payment_methods", paymentMethodsRouter);
 router.use("/addresses", addressesRouter);
 router.use("/products", productsRouter);
 router.use("/attributes", attributesRouter);
+router.use("/popups", popupsRouter);
+router.use("/upload", uploadRouter);
 
 export default router;

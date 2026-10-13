@@ -44,11 +44,22 @@ Always follow these rules automatically across all conversations in this project
   ```
 - **Automatic Swagger from Zod**: `src/config/swagger.ts` automatically scans routes and reads Zod schemas from `validate(schema)` to produce OpenAPI specs.
 
-## 5. Image Service & Handling Rules (MANDATORY across all modules)
-All image operations MUST use the centralized image service functions from `src/services/imageService.ts` (or `src/utils/handleImages.ts`) with the default storage folder `uploads`:
-1. **On Create / Add**: `uploadImage(req, base64, "uploads")` -> saves in `uploads/` and returns URL.
-2. **On Update / Edit**: `updateImage(req, newBase64, "uploads", oldImageUrlOrPath)` -> deletes old image, saves new one, returns new URL.
-3. **On Delete / Remove**: `deleteImage(oldImageUrlOrPath)` -> deletes old image physically from `uploads` BEFORE deleting the database record.
+## 5. Image Handling Rules (NO Base64 - Use Multipart/Form-Data or Direct URLs)
+- **STRICT PROHIBITION**: Base64 image uploading is strictly forbidden across all modules due to performance and payload overhead.
+- **Upload Mechanism**: All images are uploaded via `multipart/form-data` using Multer (`src/middlewares/upload.ts`) or supplied as pre-uploaded URL strings.
+- **Multer Middlewares**:
+  - `uploadSingleImage("fieldName")` for single image fields (e.g. `logo`, `image`, `icon`).
+  - `uploadMultipleImages("fieldName", maxCount)` for array fields (e.g. `gallery`, `image`).
+  - `uploadFieldsImages([...])` for multiple named file fields.
+  - Form text fields (including multilingual JSON objects) in `multipart/form-data` are automatically parsed by `parseFormDataJson`.
+- **Dedicated Upload Endpoints**:
+  - `POST /upload`: upload single image -> returns `{ url, filename }`.
+  - `POST /upload/multiple`: upload multiple images -> returns `{ urls, count }`.
+- **Storage & Static Serving**: Saved into `uploads/` with UUID filenames, served statically via `/uploads`.
+- **CRUD Operations**:
+  1. **On Create / Add**: Image processed via Multer form-data middleware or accepted as URL; stored in DB as full URL.
+  2. **On Update / Edit**: `updateImage(req, newFileOrUrl, "uploads", oldImageUrl)` deletes old physical image if changed.
+  3. **On Delete / Remove**: `deleteImage(oldImageUrl)` physically deletes file from `uploads/` BEFORE deleting the database record.
 
 ## 6. Tenant Schema Models (`src/models/tenant/`)
 Each table in a separate file in `E:\SubAdminECommerce\src\models\tenant/`:
