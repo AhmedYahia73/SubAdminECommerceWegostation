@@ -1,7 +1,7 @@
 // src/seeds/01_admin.ts
 
 import { db } from "../../models/db";
-import { admins } from "../../models/schema";
+import { admins } from "../../models/central/admins";
 import { Seed } from "../runner";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";

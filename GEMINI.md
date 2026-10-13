@@ -2,48 +2,71 @@
 
 Always follow these rules automatically across all conversations in this project:
 
-## 1. Project Context
+## 1. Project Context & Subdomain Wildcard Resolution
 - **Project Path**: `E:\SubAdminECommerce`
-- **Architecture**: Multi-Tenancy Wildcard Schema — queries run against each tenant's specific schema based on the requesting tenant/subdomain wildcard.
-- **Tenant Models**: Placed in `src/models/tenant/` with **each table in a separate file**:
-  1. `customers.ts` (`customer` table: name, phone unique, email unique, order_num int default 0, order_sum int default 0, password)
-  2. `categories.ts` (`category` table: name json, category_id self-ref, order_number, banner, icon, cover_image)
-  3. `brands.ts` (`brand` table: name, logo)
-  4. `discounts.ts` (`discount` table: name json, type percentage/value enum, amount, status)
-  5. `flashDiscounts.ts` (`flash_discount` table: name json, type percentage/value enum, amount, status, start_date, end_date)
-  6. `popups.ts` (`popup` table: image array json, link, name json, description json)
-  7. `warranties.ts` (`warranty` table: text json, logo, period string nullable)
-  8. `taxes.ts` (`tax` table: name json, amount, type percentage/value enum, status)
-  9. `roles.ts` (`role` table: name)
-  10. `permissions.ts` (`perimission` table: role_id, permission, actions json)
-  11. `staff.ts` (`staff` table: name, email unique, phone unique, password, role_id)
-  12. `paymentMethods.ts` (`payment_method` table: name array json, description nullable, icon, status)
-  13. `products.ts` (`products` table: name json, description json nullable, category_id, sub_category_id, brand_id, discount_id, flash_discount_id, tax_id, image, warrantly_id, warrantly_note, today_deal, free_shipping, shipping_days, gallery json, published)
-  14. `attributes.ts` (`attribute` table: name json)
-  15. `values.ts` (`value` table: name json, attribute_id)
-  16. `productAttributes.ts` (`product_attribute` table: product_id, attribute_id)
-  17. `productValues.ts` (`product_values` table: product_id, value_ids json, sku nullable, quantity default 1, image, price default 0)
-  18. `cities.ts` (`city` table: name array json, status)
-  19. `zones.ts` (`zone` table: name array json, city_id, status)
-  20. `addresses.ts` (`address` table: customer_id, city_id, zone_id, building_num, floor, address, street, additional_data, lat, lng)
-  21. `languages.ts` (`lang` table: name string, status)
-- All tables re-exported via `src/models/tenant/index.ts` and `src/models/schema.ts`.
-- Primary keys use `char("id", { length: 36 }).primaryKey().default(sql\`(UUID())\`)`.
+- **Subdomain Schema Resolution**:
+  - Every API request identifies the tenant via `subdomain` (from `req.headers["x-subdomain"]` or the prefix before the main domain in `req.hostname`, e.g. `ahmed.wego.com` -> `subdomain = ahmed`).
+  - The subdomain MUST be verified against the central database `users` table (`src/models/central/users.ts` -> `subdomain`).
+  - If the subdomain does NOT exist in `users`, return an error: **"Subdomain not found"** (404/400).
+  - If it exists, all database actions MUST be executed against the wildcard schema corresponding to that `subdomain` (attached to `req.db`).
 
-## 2. CRUD & Folder Conventions (`controllers`, `validators`, `routes`)
-- **Validators**: Place all Zod validation schemas in `src/validators/{role}/{element}.ts`.
-- **Controllers**: Place CRUD controllers in `src/controllers/{role}/{element}.ts`.
-- **Routes**: Place route definitions in `src/routes/{role}/{item}.ts` and mount them in `src/routes/{role}/index.ts`.
+## 2. Multilingual JSON Handling (`name`, `description`, etc.)
+- All JSON fields representing text (`name`, `description`, etc.) support multiple languages.
+- Active languages are determined by the `lang` table (`SELECT * FROM lang WHERE status = true`).
+- **On Add / Create & Edit / Update**:
+  - The client provides translations as a JSON object, e.g. `{"ar": "...", "en": "..."}`.
+  - The **first language is REQUIRED**; remaining languages are optional.
+  - All languages are included in the Zod validation schema so they are clearly documented in Swagger.
+  - If `description` is nullable, the entire `description` key is optional (nullable).
+- **On Fetch / Get (Single or All)**:
+  - The client passes query param `?lang=...` (or header).
+  - The API returns the text for the requested language. If the value does not exist in that language, it MUST fall back to the first language.
+- **Relational Lists Endpoint (`GET /{item}/lists`) (MANDATORY across all modules with relations)**:
+  - Whenever a table has columns referencing other tables (Foreign Key relations needed at create/edit):
+    - Create a dedicated `GET /lists` endpoint on that element router (e.g. `GET /products/lists`, `GET /addresses/lists`, `GET /staff/lists`, `GET /zones/lists`).
+    - It must fetch and return all the tables related to this element at once as `{ [relatedTableName]: [{ id, name }] }`.
+    - Every related item MUST have `{ id, name }`, where `name` is localized according to `?lang=...` (falling back to the first available language if missing).
+    - Example for products (`GET /products/lists`):
+      returns `{ categories: [{ id, name }], brands: [{ id, name }], discounts: [{ id, name }], flash_discounts: [{ id, name }], taxes: [{ id, name }], warranties: [{ id, name }] }`.
+
+## 3. Address Coordinates & Google Maps Link
+- In the `address` model, whenever `lat` and `lng` are present, automatically compute and return:
+  `map_url: "https://www.google.com/maps/search/?api=1&query=${lat},${lng}"`
+
+## 4. CRUD & Folder Conventions (`controllers`, `validators`, `routes`)
+- **Validators**: Place Zod schemas in `src/validators/sub_admin/{element}.ts`.
+- **Controllers**: Place CRUD controllers in `src/controllers/sub_admin/{element}.ts`.
+- **Routes**: Place route definitions in `src/routes/sub_admin/{item}.ts` and mount them in `src/routes/sub_admin/index.ts`.
 - **Route Middleware Pattern**: Always attach permission middleware, validation middleware, and `catchAsync` directly on the route:
   ```ts
   router.get("/", checkPermission(), catchAsync(getAllItems));
   router.post("/", checkPermission(), validate(createItemSchema), catchAsync(createItem));
   ```
-- **Automatic Swagger from Zod**: `src/config/swagger.ts` automatically scans all Express routes and reads the Zod schema attached by `validate(schema)` to generate OpenAPI parameters (`params`, `query`) and `requestBody` (`body`) keys. Do not clutter route files with manual `@swagger` JSDoc blocks.
-- **Relational Selection Endpoints**: Whenever a table has columns referencing another table (Foreign Key relation), create a selection API endpoint that fetches `{ id, name }` for dropdowns/select fields.
+- **Automatic Swagger from Zod**: `src/config/swagger.ts` automatically scans routes and reads Zod schemas from `validate(schema)` to produce OpenAPI specs.
 
-## 3. Image Upload / Update / Delete Service (`src/utils/handleImages.ts`)
-Always use the standard functions in `src/utils/handleImages.ts` whenever any model has an image/icon field:
-- **On Create**: Use `uploadImage(req, base64, folder)` — saves the image in `uploads/{folder}` and returns its URL string to store in the database.
-- **On Update**: Use `updateImage(req, newBase64, folder, oldImageUrlOrPath)` — deletes the old image from `uploads` first (if it exists), saves the new image in `uploads/{folder}`, and returns the new URL string to store in the database.
-- **On Delete**: Use `deleteImage(oldImageUrlOrPath)` — deletes the old image file from `uploads` before/when deleting the database record.
+## 5. Image Service & Handling Rules (MANDATORY across all modules)
+All image operations MUST use the centralized image service functions from `src/services/imageService.ts` (or `src/utils/handleImages.ts`) with the default storage folder `uploads`:
+1. **On Create / Add**: `uploadImage(req, base64, "uploads")` -> saves in `uploads/` and returns URL.
+2. **On Update / Edit**: `updateImage(req, newBase64, "uploads", oldImageUrlOrPath)` -> deletes old image, saves new one, returns new URL.
+3. **On Delete / Remove**: `deleteImage(oldImageUrlOrPath)` -> deletes old image physically from `uploads` BEFORE deleting the database record.
+
+## 6. Tenant Schema Models (`src/models/tenant/`)
+Each table in a separate file in `E:\SubAdminECommerce\src\models\tenant/`:
+`customers.ts`, `categories.ts`, `brands.ts`, `discounts.ts`, `flashDiscounts.ts`, `popups.ts`, `warranties.ts`, `taxes.ts`, `roles.ts`, `permissions.ts`, `staff.ts`, `paymentMethods.ts`, `products.ts`, `attributes.ts`, `values.ts`, `productAttributes.ts`, `productValues.ts`, `cities.ts`, `zones.ts`, `addresses.ts`, `languages.ts`.
+Re-exported in `src/models/tenant/index.ts` and `src/models/schema.ts`.
+
+## 7. Multi-Tenant Schema Synchronization & Migration Rules
+- **Canonical Table Definitions (`TENANT_TABLE_DEFINITIONS`)**:
+  - Located in `src/services/tenantSchemaService.ts` in both projects.
+  - Acts as the single source of truth for all 21 tenant tables.
+  - Whenever any model, table, or column in `E:\SubAdminECommerce\src\models\tenant/` is added, modified, or removed:
+    1. ALWAYS update `TENANT_TABLE_DEFINITIONS` in `src/services/tenantSchemaService.ts` in both projects.
+    2. This guarantees that **new tenant schemas** created via `createTenantSchema(subdomain)` immediately receive the latest structure.
+- **Migrating Existing Tenants (`npm run db:migrate:tenants`)**:
+  - Whenever tenant models are updated, execute `npm run db:migrate:tenants`.
+  - It inspects `INFORMATION_SCHEMA` across all registered tenants from central `users`:
+    - Automatically creates any missing tables.
+    - Automatically adds any missing columns via `ALTER TABLE ... ADD COLUMN ...`.
+    - Preserves live user data without drop or data loss.
+    - Seeds default initial data (languages `ar`, `en` and role `admin`) if missing.
+

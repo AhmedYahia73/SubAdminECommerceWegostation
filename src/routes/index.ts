@@ -1,8 +1,9 @@
 import { Router } from "express";
-import superAdminRoute from "./super_admin";
+import subAdminRoute from "./sub_admin";
 
 const route = Router();
 
-route.use("/super_admin", superAdminRoute);
+// Mount SubAdmin multi-tenancy routes
+route.use("/sub_admin", subAdminRoute);
 
 export default route;
