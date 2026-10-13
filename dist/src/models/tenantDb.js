@@ -38,13 +38,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.centralDb = void 0;
 exports.getTenantDb = getTenantDb;
+exports.extractSubdomain = extractSubdomain;
+exports.isSubscriptionActive = isSubscriptionActive;
 exports.tenantMiddleware = tenantMiddleware;
 const mysql2_1 = require("drizzle-orm/mysql2");
 const promise_1 = __importDefault(require("mysql2/promise"));
 const tenantSchema = __importStar(require("./schema"));
 const users_1 = require("./central/users");
+const packages_1 = require("./central/packages");
 const drizzle_orm_1 = require("drizzle-orm");
 const Errors_1 = require("../Errors");
+const http_status_codes_1 = require("http-status-codes");
+const localization_1 = require("../utils/localization");
 require("dotenv/config");
 // 1. Central Database Pool & Instance
 const centralPool = promise_1.default.createPool({
@@ -76,16 +81,67 @@ function getTenantDb(subdomain) {
     tenantPools.set(subdomain, tenantDb);
     return tenantDb;
 }
-// 3. Subdomain Multi-Tenancy Middleware
-async function tenantMiddleware(req, res, next) {
-    try {
-        let subdomain = req.headers["x-subdomain"] || "";
-        if (!subdomain && req.hostname) {
-            const parts = req.hostname.split(".");
-            if (parts.length > 1 && parts[0] !== "www" && parts[0] !== "localhost") {
+/**
+ * Extracts subdomain from request:
+ * 1. Header 'x-subdomain'
+ * 2. Query param 'subdomain'
+ * 3. Host / Hostname: part before the first dot '.' (e.g. ahmed.wego.com -> ahmed)
+ */
+function extractSubdomain(req) {
+    let subdomain = req.headers["x-subdomain"] || "";
+    if (subdomain) {
+        return subdomain.trim().toLowerCase();
+    }
+    if (req.query?.subdomain && typeof req.query.subdomain === "string") {
+        return req.query.subdomain.trim().toLowerCase();
+    }
+    const rawHost = req.headers.host || req.hostname || "";
+    const cleanHost = rawHost.split(":")[0].trim().toLowerCase();
+    if (cleanHost) {
+        const parts = cleanHost.split(".");
+        // Example: ahmed.wego.com -> parts = ["ahmed", "wego", "com"]
+        // Subdomain is the segment before the first "." (المقطع اللى قبل .)
+        if (parts.length > 1) {
+            if (parts[0] === "www" && parts.length > 2) {
+                subdomain = parts[1];
+            }
+            else if (parts[0] !== "localhost" && parts[0] !== "127") {
                 subdomain = parts[0];
             }
         }
+    }
+    return subdomain;
+}
+/**
+ * Checks whether the tenant's central subscription is currently active:
+ * users.start_date <= now() AND users.end_date >= now()
+ */
+function isSubscriptionActive(startDateVal, endDateVal) {
+    if (!startDateVal || !endDateVal) {
+        return false;
+    }
+    const now = new Date();
+    const toDateString = (val) => {
+        if (typeof val === "string") {
+            return val.slice(0, 10);
+        }
+        return val.toISOString().slice(0, 10);
+    };
+    const startStr = toDateString(startDateVal);
+    const endStr = toDateString(endDateVal);
+    const todayUtcStr = now.toISOString().slice(0, 10);
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const todayLocalStr = `${year}-${month}-${day}`;
+    const isStartValid = startStr <= todayUtcStr || startStr <= todayLocalStr;
+    const isEndValid = endStr >= todayUtcStr || endStr >= todayLocalStr;
+    return isStartValid && isEndValid;
+}
+// 3. Subdomain Multi-Tenancy Middleware
+async function tenantMiddleware(req, res, next) {
+    try {
+        const subdomain = extractSubdomain(req);
         if (!subdomain) {
             throw new Errors_1.NotFound("Subdomain not found");
         }
@@ -98,9 +154,38 @@ async function tenantMiddleware(req, res, next) {
         if (!tenantUser[0]) {
             throw new Errors_1.NotFound("Subdomain not found");
         }
+        const currentTenant = tenantUser[0];
+        // Check subscription active: start_date <= now() AND end_date >= now()
+        const active = isSubscriptionActive(currentTenant.start_date, currentTenant.end_date);
+        if (!active) {
+            const lang = req.query.lang || req.headers["lang"] || "en";
+            // Fetch all packages from central database
+            const centralPackages = await exports.centralDb
+                .select({
+                id: packages_1.packages.id,
+                name: packages_1.packages.name,
+                type: packages_1.packages.type,
+                price: packages_1.packages.price,
+                status: packages_1.packages.status,
+            })
+                .from(packages_1.packages);
+            const formattedPackages = centralPackages.map((pkg) => ({
+                id: pkg.id,
+                name: (0, localization_1.getLocalizedText)(pkg.name, lang, "en"),
+                type: pkg.type,
+                price: pkg.price,
+                status: pkg.status,
+            }));
+            return res.status(http_status_codes_1.StatusCodes.FORBIDDEN).json({
+                status: false,
+                success: false,
+                message: "Tenant subscription has expired or is inactive",
+                packages: formattedPackages,
+            });
+        }
         // Attach tenant db instance and info to request
         req.subdomain = subdomain;
-        req.tenant = tenantUser[0];
+        req.tenant = currentTenant;
         req.db = getTenantDb(subdomain);
         next();
     }
