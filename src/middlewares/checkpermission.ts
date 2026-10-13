@@ -4,9 +4,6 @@ import { verifyToken } from "../utils/auth";
 import { admins } from "../models/schema";
 import { eq } from "drizzle-orm";
 
-/**
- * Middleware للتحقق من أن المستخدم مسجل حصراً في جدول admin الخاص بالمتجر وحالته نشطة (status = true)
- */
 export const checkOnlyAdmin = () => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
