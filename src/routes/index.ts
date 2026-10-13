@@ -7,3 +7,5 @@ const route = Router();
 route.use("/sub_admin", subAdminRoute);
 
 export default route;
+
+// db:migrate:tenants

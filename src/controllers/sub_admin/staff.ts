@@ -1,12 +1,18 @@
 import { Request, Response } from "express";
 import { staff, roles } from "../../models/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, inArray, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { ConflictError, NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 
 export async function getAllStaff(req: Request, res: Response) {
   const db = req.db;
+  const { page, limit, offset } = getPaginationParams(req);
+
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(staff);
+  const total = Number(countResult?.total || 0);
+
   const list = await db
     .select({
       id: staff.id,
@@ -19,9 +25,18 @@ export async function getAllStaff(req: Request, res: Response) {
       updatedAt: staff.updatedAt,
     })
     .from(staff)
-    .leftJoin(roles, eq(staff.role_id, roles.id));
+    .leftJoin(roles, eq(staff.role_id, roles.id))
+    .limit(limit)
+    .offset(offset);
 
-  return SuccessResponse(res, { staff: list }, 200);
+  return SuccessResponse(
+    res,
+    {
+      staff: list,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 export async function getStaffLists(req: Request, res: Response) {
@@ -145,4 +160,24 @@ export async function deleteStaff(req: Request, res: Response) {
 
   await db.delete(staff).where(eq(staff.id, id));
   return SuccessResponse(res, { message: "Staff member deleted successfully" }, 200);
+}
+
+export async function bulkDeleteStaff(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(staff).where(inArray(staff.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching staff members found", deletedCount: 0 }, 200);
+  }
+
+  await db.delete(staff).where(inArray(staff.id, ids));
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} staff member(s) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

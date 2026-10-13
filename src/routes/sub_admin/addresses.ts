@@ -6,6 +6,7 @@ import {
   createAddress,
   updateAddress,
   deleteAddress,
+  bulkDeleteAddresses,
 } from "../../controllers/sub_admin/addresses";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -15,8 +16,12 @@ import {
   updateAddressSchema,
   addressIdParamSchema,
 } from "../../validators/sub_admin/addresses";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteAddresses));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteAddresses));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllAddresses));
 router.get("/lists", checkOnlyAdmin(), catchAsync(getAddressLists));

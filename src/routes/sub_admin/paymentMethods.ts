@@ -6,6 +6,7 @@ import {
   createPaymentMethod,
   updatePaymentMethod,
   deletePaymentMethod,
+  bulkDeletePaymentMethods,
 } from "../../controllers/sub_admin/paymentMethods";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -15,8 +16,12 @@ import {
   updatePaymentMethodSchema,
   paymentMethodIdParamSchema,
 } from "../../validators/sub_admin/paymentMethods";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeletePaymentMethods));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeletePaymentMethods));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllPaymentMethods));
 router.get("/select", checkOnlyAdmin(), catchAsync(getPaymentMethodsSelection));

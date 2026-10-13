@@ -70,3 +70,24 @@ Re-exported in `src/models/tenant/index.ts` and `src/models/schema.ts`.
     - Preserves live user data without drop or data loss.
     - Seeds default initial data (languages `ar`, `en` and role `admin`) if missing.
 
+## 8. Pagination Rules for All Fetch (`getAll`) Endpoints (MANDATORY across all modules)
+- Every `getAll` endpoint (e.g. `getAllProducts`, `getAllCategories`, `getAllAttributes`, etc.) MUST support pagination.
+- Query parameters:
+  - `page`: default `1`
+  - `limit`: default `10`
+  - `offset`: `(page - 1) * limit`
+- Response structure MUST include a `pagination` object:
+  ```json
+  {
+    "[element]": [...],
+    "pagination": {
+      "total": 100,
+      "page": 1,
+      "limit": 10,
+      "totalPages": 10
+    }
+  }
+  ```
+- Helper functions available in `src/utils/pagination.ts`: `getPaginationParams(req)` and `buildPaginationMeta(total, page, limit)`.
+- Dropdown endpoints (`/select`, `/{element}/lists`) remain unpaginated to supply all available options for relational forms.
+

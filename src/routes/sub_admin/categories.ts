@@ -6,6 +6,7 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  bulkDeleteCategories,
 } from "../../controllers/sub_admin/categories";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -15,8 +16,12 @@ import {
   updateCategorySchema,
   categoryIdParamSchema,
 } from "../../validators/sub_admin/categories";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteCategories));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteCategories));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllCategories));
 router.get("/select", checkOnlyAdmin(), catchAsync(getCategoriesSelection));

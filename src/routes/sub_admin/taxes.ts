@@ -6,6 +6,7 @@ import {
   createTax,
   updateTax,
   deleteTax,
+  bulkDeleteTaxes,
 } from "../../controllers/sub_admin/taxes";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -15,8 +16,12 @@ import {
   updateTaxSchema,
   taxIdParamSchema,
 } from "../../validators/sub_admin/taxes";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteTaxes));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteTaxes));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllTaxes));
 router.get("/select", checkOnlyAdmin(), catchAsync(getTaxesSelection));

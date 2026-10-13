@@ -6,6 +6,7 @@ import {
   createWarranty,
   updateWarranty,
   deleteWarranty,
+  bulkDeleteWarranties,
 } from "../../controllers/sub_admin/warranties";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -15,8 +16,12 @@ import {
   updateWarrantySchema,
   warrantyIdParamSchema,
 } from "../../validators/sub_admin/warranties";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteWarranties));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteWarranties));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllWarranties));
 router.get("/select", checkOnlyAdmin(), catchAsync(getWarrantiesSelection));

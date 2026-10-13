@@ -1,13 +1,26 @@
 import { Request, Response } from "express";
 import { zones, cities } from "../../models/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 
 export async function getAllZones(req: Request, res: Response) {
   const db = req.db;
-  const list = await db.select().from(zones);
-  return SuccessResponse(res, { zones: list }, 200);
+  const { page, limit, offset } = getPaginationParams(req);
+
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(zones);
+  const total = Number(countResult?.total || 0);
+
+  const list = await db.select().from(zones).limit(limit).offset(offset);
+  return SuccessResponse(
+    res,
+    {
+      zones: list,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 export async function getZoneLists(req: Request, res: Response) {
@@ -109,4 +122,24 @@ export async function deleteZone(req: Request, res: Response) {
 
   await db.delete(zones).where(eq(zones.id, id));
   return SuccessResponse(res, { message: "Zone deleted successfully" }, 200);
+}
+
+export async function bulkDeleteZones(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(zones).where(inArray(zones.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching zones found", deletedCount: 0 }, 200);
+  }
+
+  await db.delete(zones).where(inArray(zones.id, ids));
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} zone(s) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

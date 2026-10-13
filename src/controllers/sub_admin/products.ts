@@ -9,17 +9,22 @@ import {
   taxes,
   warranties,
 } from "../../models/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
 import { getLocalizedText } from "../../utils/localization";
 import { uploadImage, updateImage, deleteImage } from "../../services/imageService";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 import { randomUUID } from "crypto";
 
-// 1. Get All Products with Localized Relations & Variants
+// 1. Get All Products with Localized Relations & Variants (Paginated)
 export async function getAllProducts(req: Request, res: Response) {
   const db = req.db;
   const lang = req.query.lang as string | undefined;
+  const { page, limit, offset } = getPaginationParams(req);
+
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(products);
+  const total = Number(countResult?.total || 0);
 
   const allProducts = await db
     .select({
@@ -55,13 +60,16 @@ export async function getAllProducts(req: Request, res: Response) {
     .leftJoin(discounts, eq(products.discount_id, discounts.id))
     .leftJoin(flashDiscounts, eq(products.flash_discount_id, flashDiscounts.id))
     .leftJoin(taxes, eq(products.tax_id, taxes.id))
-    .leftJoin(warranties, eq(products.warrantly_id, warranties.id));
+    .leftJoin(warranties, eq(products.warrantly_id, warranties.id))
+    .limit(limit)
+    .offset(offset);
 
   // Fetch all variants for these products
   const productIds = allProducts.map((p) => p.id);
-  const allVariants = productIds.length > 0
-    ? await db.select().from(productValues).where(inArray(productValues.product_id, productIds))
-    : [];
+  const allVariants =
+    productIds.length > 0
+      ? await db.select().from(productValues).where(inArray(productValues.product_id, productIds))
+      : [];
 
   const formatted = allProducts.map((p) => {
     const variants = allVariants.filter((v) => v.product_id === p.id);
@@ -99,7 +107,14 @@ export async function getAllProducts(req: Request, res: Response) {
     };
   });
 
-  return SuccessResponse(res, { products: formatted }, 200);
+  return SuccessResponse(
+    res,
+    {
+      products: formatted,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 // 2. Relational Lists Endpoint for Creating / Editing Products
@@ -529,4 +544,50 @@ export async function deleteProduct(req: Request, res: Response) {
   await db.delete(products).where(eq(products.id, id));
 
   return SuccessResponse(res, { message: "Product deleted successfully" }, 200);
+}
+
+export async function bulkDeleteProducts(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(products).where(inArray(products.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching products found", deletedCount: 0 }, 200);
+  }
+
+  // 1. Delete all images across all matching products
+  for (const item of existing) {
+    if (item.image) {
+      await deleteImage(item.image);
+    }
+    const galleryUrls = (item.gallery as string[]) || [];
+    for (const url of galleryUrls) {
+      await deleteImage(url);
+    }
+  }
+
+  // 2. Delete all variant images
+  const variants = await db
+    .select()
+    .from(productValues)
+    .where(inArray(productValues.product_id, ids));
+
+  for (const v of variants) {
+    if (v.image) {
+      await deleteImage(v.image);
+    }
+  }
+
+  // 3. Delete records
+  await db.delete(productValues).where(inArray(productValues.product_id, ids));
+  await db.delete(products).where(inArray(products.id, ids));
+
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} product(s) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

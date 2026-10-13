@@ -7,6 +7,7 @@ import {
   createZone,
   updateZone,
   deleteZone,
+  bulkDeleteZones,
 } from "../../controllers/sub_admin/zones";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -16,8 +17,12 @@ import {
   updateZoneSchema,
   zoneIdParamSchema,
 } from "../../validators/sub_admin/zones";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteZones));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteZones));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllZones));
 router.get("/lists", checkOnlyAdmin(), catchAsync(getZoneLists));

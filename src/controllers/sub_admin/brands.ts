@@ -1,14 +1,27 @@
 import { Request, Response } from "express";
 import { brands } from "../../models/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
 import { uploadImage, updateImage, deleteImage } from "../../services/imageService";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 
 export async function getAllBrands(req: Request, res: Response) {
   const db = req.db;
-  const list = await db.select().from(brands);
-  return SuccessResponse(res, { brands: list }, 200);
+  const { page, limit, offset } = getPaginationParams(req);
+
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(brands);
+  const total = Number(countResult?.total || 0);
+
+  const list = await db.select().from(brands).limit(limit).offset(offset);
+  return SuccessResponse(
+    res,
+    {
+      brands: list,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 export async function getBrandsSelection(req: Request, res: Response) {
@@ -80,4 +93,30 @@ export async function deleteBrand(req: Request, res: Response) {
   await db.delete(brands).where(eq(brands.id, id));
 
   return SuccessResponse(res, { message: "Brand deleted successfully" }, 200);
+}
+
+export async function bulkDeleteBrands(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(brands).where(inArray(brands.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching brands found", deletedCount: 0 }, 200);
+  }
+
+  for (const item of existing) {
+    if (item.logo) {
+      await deleteImage(item.logo);
+    }
+  }
+
+  await db.delete(brands).where(inArray(brands.id, ids));
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} brand(s) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

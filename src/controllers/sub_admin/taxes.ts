@@ -1,22 +1,34 @@
 import { Request, Response } from "express";
 import { taxes } from "../../models/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
 import { getLocalizedText } from "../../utils/localization";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 
 export async function getAllTaxes(req: Request, res: Response) {
   const db = req.db;
   const lang = req.query.lang as string | undefined;
+  const { page, limit, offset } = getPaginationParams(req);
 
-  const list = await db.select().from(taxes);
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(taxes);
+  const total = Number(countResult?.total || 0);
+
+  const list = await db.select().from(taxes).limit(limit).offset(offset);
   const formatted = list.map((item) => ({
     ...item,
     name: getLocalizedText(item.name, lang),
     names: item.name,
   }));
 
-  return SuccessResponse(res, { taxes: formatted }, 200);
+  return SuccessResponse(
+    res,
+    {
+      taxes: formatted,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 export async function getTaxesSelection(req: Request, res: Response) {
@@ -99,4 +111,24 @@ export async function deleteTax(req: Request, res: Response) {
 
   await db.delete(taxes).where(eq(taxes.id, id));
   return SuccessResponse(res, { message: "Tax deleted successfully" }, 200);
+}
+
+export async function bulkDeleteTaxes(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(taxes).where(inArray(taxes.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching taxes found", deletedCount: 0 }, 200);
+  }
+
+  await db.delete(taxes).where(inArray(taxes.id, ids));
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} tax(es) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

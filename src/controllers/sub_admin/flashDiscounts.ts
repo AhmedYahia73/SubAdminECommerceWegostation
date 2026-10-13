@@ -1,22 +1,34 @@
 import { Request, Response } from "express";
 import { flashDiscounts } from "../../models/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
 import { getLocalizedText } from "../../utils/localization";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 
 export async function getAllFlashDiscounts(req: Request, res: Response) {
   const db = req.db;
   const lang = req.query.lang as string | undefined;
+  const { page, limit, offset } = getPaginationParams(req);
 
-  const list = await db.select().from(flashDiscounts);
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(flashDiscounts);
+  const total = Number(countResult?.total || 0);
+
+  const list = await db.select().from(flashDiscounts).limit(limit).offset(offset);
   const formatted = list.map((item) => ({
     ...item,
     name: getLocalizedText(item.name, lang),
     names: item.name,
   }));
 
-  return SuccessResponse(res, { flashDiscounts: formatted }, 200);
+  return SuccessResponse(
+    res,
+    {
+      flash_discounts: formatted,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 export async function getFlashDiscountsSelection(req: Request, res: Response) {
@@ -103,4 +115,24 @@ export async function deleteFlashDiscount(req: Request, res: Response) {
 
   await db.delete(flashDiscounts).where(eq(flashDiscounts.id, id));
   return SuccessResponse(res, { message: "Flash discount deleted successfully" }, 200);
+}
+
+export async function bulkDeleteFlashDiscounts(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(flashDiscounts).where(inArray(flashDiscounts.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching flash discounts found", deletedCount: 0 }, 200);
+  }
+
+  await db.delete(flashDiscounts).where(inArray(flashDiscounts.id, ids));
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} flash discount(s) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

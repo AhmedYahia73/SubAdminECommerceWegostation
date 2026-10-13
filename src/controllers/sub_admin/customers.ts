@@ -1,13 +1,19 @@
 import { Request, Response } from "express";
 import { customers } from "../../models/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, inArray, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { ConflictError, NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
 import { uploadImage, updateImage, deleteImage } from "../../services/imageService";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 
 export async function getAllCustomers(req: Request, res: Response) {
   const db = req.db;
+  const { page, limit, offset } = getPaginationParams(req);
+
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(customers);
+  const total = Number(countResult?.total || 0);
+
   const list = await db
     .select({
       id: customers.id,
@@ -20,9 +26,18 @@ export async function getAllCustomers(req: Request, res: Response) {
       createdAt: customers.createdAt,
       updatedAt: customers.updatedAt,
     })
-    .from(customers);
+    .from(customers)
+    .limit(limit)
+    .offset(offset);
 
-  return SuccessResponse(res, { customers: list }, 200);
+  return SuccessResponse(
+    res,
+    {
+      customers: list,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 export async function getCustomersSelection(req: Request, res: Response) {
@@ -147,4 +162,30 @@ export async function deleteCustomer(req: Request, res: Response) {
 
   await db.delete(customers).where(eq(customers.id, id));
   return SuccessResponse(res, { message: "Customer deleted successfully" }, 200);
+}
+
+export async function bulkDeleteCustomers(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(customers).where(inArray(customers.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching customers found", deletedCount: 0 }, 200);
+  }
+
+  for (const item of existing) {
+    if (item.image) {
+      await deleteImage(item.image);
+    }
+  }
+
+  await db.delete(customers).where(inArray(customers.id, ids));
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} customer(s) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

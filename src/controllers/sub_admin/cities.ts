@@ -1,13 +1,26 @@
 import { Request, Response } from "express";
 import { cities } from "../../models/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 
 export async function getAllCities(req: Request, res: Response) {
   const db = req.db;
-  const list = await db.select().from(cities);
-  return SuccessResponse(res, { cities: list }, 200);
+  const { page, limit, offset } = getPaginationParams(req);
+
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(cities);
+  const total = Number(countResult?.total || 0);
+
+  const list = await db.select().from(cities).limit(limit).offset(offset);
+  return SuccessResponse(
+    res,
+    {
+      cities: list,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 export async function getCitiesSelection(req: Request, res: Response) {
@@ -78,4 +91,24 @@ export async function deleteCity(req: Request, res: Response) {
 
   await db.delete(cities).where(eq(cities.id, id));
   return SuccessResponse(res, { message: "City deleted successfully" }, 200);
+}
+
+export async function bulkDeleteCities(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(cities).where(inArray(cities.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching cities found", deletedCount: 0 }, 200);
+  }
+
+  await db.delete(cities).where(inArray(cities.id, ids));
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} city(ies) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

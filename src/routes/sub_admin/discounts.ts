@@ -6,6 +6,7 @@ import {
   createDiscount,
   updateDiscount,
   deleteDiscount,
+  bulkDeleteDiscounts,
 } from "../../controllers/sub_admin/discounts";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -15,8 +16,12 @@ import {
   updateDiscountSchema,
   discountIdParamSchema,
 } from "../../validators/sub_admin/discounts";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteDiscounts));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteDiscounts));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllDiscounts));
 router.get("/select", checkOnlyAdmin(), catchAsync(getDiscountsSelection));

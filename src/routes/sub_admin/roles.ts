@@ -6,6 +6,7 @@ import {
   createRole,
   updateRole,
   deleteRole,
+  bulkDeleteRoles,
 } from "../../controllers/sub_admin/roles";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -15,8 +16,12 @@ import {
   updateRoleSchema,
   roleIdParamSchema,
 } from "../../validators/sub_admin/roles";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteRoles));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteRoles));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllRoles));
 router.get("/select", checkOnlyAdmin(), catchAsync(getRolesSelection));

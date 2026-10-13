@@ -1,12 +1,17 @@
 import { Request, Response } from "express";
 import { addresses, customers, cities, zones } from "../../models/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
 import { getGoogleMapsUrl } from "../../utils/localization";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 
 export async function getAllAddresses(req: Request, res: Response) {
   const db = req.db;
+  const { page, limit, offset } = getPaginationParams(req);
+
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(addresses);
+  const total = Number(countResult?.total || 0);
 
   const list = await db
     .select({
@@ -26,14 +31,23 @@ export async function getAllAddresses(req: Request, res: Response) {
       updatedAt: addresses.updatedAt,
     })
     .from(addresses)
-    .leftJoin(customers, eq(addresses.customer_id, customers.id));
+    .leftJoin(customers, eq(addresses.customer_id, customers.id))
+    .limit(limit)
+    .offset(offset);
 
   const formatted = list.map((item) => ({
     ...item,
     map_url: getGoogleMapsUrl(item.lat, item.lng),
   }));
 
-  return SuccessResponse(res, { addresses: formatted }, 200);
+  return SuccessResponse(
+    res,
+    {
+      addresses: formatted,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 // Relational Lists Endpoint for Creating / Editing Addresses
@@ -212,4 +226,24 @@ export async function deleteAddress(req: Request, res: Response) {
 
   await db.delete(addresses).where(eq(addresses.id, id));
   return SuccessResponse(res, { message: "Address deleted successfully" }, 200);
+}
+
+export async function bulkDeleteAddresses(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(addresses).where(inArray(addresses.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching addresses found", deletedCount: 0 }, 200);
+  }
+
+  await db.delete(addresses).where(inArray(addresses.id, ids));
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} address(es) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

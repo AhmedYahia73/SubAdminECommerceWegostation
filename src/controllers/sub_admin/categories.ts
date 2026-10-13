@@ -1,23 +1,35 @@
 import { Request, Response } from "express";
 import { categories } from "../../models/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { NotFound } from "../../Errors";
 import { SuccessResponse } from "../../utils/response";
 import { getLocalizedText } from "../../utils/localization";
 import { uploadImage, updateImage, deleteImage } from "../../services/imageService";
+import { getPaginationParams, buildPaginationMeta } from "../../utils/pagination";
 
 export async function getAllCategories(req: Request, res: Response) {
   const db = req.db;
   const lang = req.query.lang as string | undefined;
+  const { page, limit, offset } = getPaginationParams(req);
 
-  const list = await db.select().from(categories);
+  const [countResult] = await db.select({ total: sql<number>`count(*)` }).from(categories);
+  const total = Number(countResult?.total || 0);
+
+  const list = await db.select().from(categories).limit(limit).offset(offset);
   const formatted = list.map((item) => ({
     ...item,
     name: getLocalizedText(item.name, lang),
     names: item.name,
   }));
 
-  return SuccessResponse(res, { categories: formatted }, 200);
+  return SuccessResponse(
+    res,
+    {
+      categories: formatted,
+      pagination: buildPaginationMeta(total, page, limit),
+    },
+    200
+  );
 }
 
 export async function getCategoriesSelection(req: Request, res: Response) {
@@ -139,4 +151,30 @@ export async function deleteCategory(req: Request, res: Response) {
 
   await db.delete(categories).where(eq(categories.id, id));
   return SuccessResponse(res, { message: "Category deleted successfully" }, 200);
+}
+
+export async function bulkDeleteCategories(req: Request, res: Response) {
+  const db = req.db;
+  const { ids } = req.body as { ids: string[] };
+
+  const existing = await db.select().from(categories).where(inArray(categories.id, ids));
+  if (existing.length === 0) {
+    return SuccessResponse(res, { message: "No matching categories found", deletedCount: 0 }, 200);
+  }
+
+  for (const item of existing) {
+    if (item.banner) await deleteImage(item.banner);
+    if (item.icon) await deleteImage(item.icon);
+    if (item.cover_image) await deleteImage(item.cover_image);
+  }
+
+  await db.delete(categories).where(inArray(categories.id, ids));
+  return SuccessResponse(
+    res,
+    {
+      message: `${existing.length} category(ies) deleted successfully`,
+      deletedCount: existing.length,
+    },
+    200
+  );
 }

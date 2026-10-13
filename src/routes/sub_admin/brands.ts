@@ -6,6 +6,7 @@ import {
   createBrand,
   updateBrand,
   deleteBrand,
+  bulkDeleteBrands,
 } from "../../controllers/sub_admin/brands";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -15,8 +16,12 @@ import {
   updateBrandSchema,
   brandIdParamSchema,
 } from "../../validators/sub_admin/brands";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteBrands));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteBrands));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllBrands));
 router.get("/select", checkOnlyAdmin(), catchAsync(getBrandsSelection));

@@ -7,6 +7,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  bulkDeleteProducts,
 } from "../../controllers/sub_admin/products";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -16,8 +17,12 @@ import {
   updateProductSchema,
   productIdParamSchema,
 } from "../../validators/sub_admin/products";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteProducts));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteProducts));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllProducts));
 router.get("/lists", checkOnlyAdmin(), catchAsync(getProductLists));

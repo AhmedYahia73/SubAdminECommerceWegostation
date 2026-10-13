@@ -7,6 +7,7 @@ import {
   createStaff,
   updateStaff,
   deleteStaff,
+  bulkDeleteStaff,
 } from "../../controllers/sub_admin/staff";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -16,8 +17,12 @@ import {
   updateStaffSchema,
   staffIdParamSchema,
 } from "../../validators/sub_admin/staff";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteStaff));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteStaff));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllStaff));
 router.get("/lists", checkOnlyAdmin(), catchAsync(getStaffLists));

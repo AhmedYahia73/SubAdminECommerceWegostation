@@ -6,6 +6,7 @@ import {
   createCity,
   updateCity,
   deleteCity,
+  bulkDeleteCities,
 } from "../../controllers/sub_admin/cities";
 import { catchAsync } from "../../utils/catchAsync";
 import { validate } from "../../middlewares/validation";
@@ -15,8 +16,12 @@ import {
   updateCitySchema,
   cityIdParamSchema,
 } from "../../validators/sub_admin/cities";
+import { bulkDeleteSchema } from "../../validators/sub_admin/common";
 
 const router = Router();
+
+router.post("/bulk-delete", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteCities));
+router.delete("/bulk", checkOnlyAdmin(), validate(bulkDeleteSchema), catchAsync(bulkDeleteCities));
 
 router.get("/", checkOnlyAdmin(), catchAsync(getAllCities));
 router.get("/select", checkOnlyAdmin(), catchAsync(getCitiesSelection));
