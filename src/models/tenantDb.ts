@@ -144,9 +144,11 @@ export async function tenantMiddleware(
     const currentTenant = tenantUser[0];
 
     // Check subscription active: start_date <= now() AND end_date >= now()
+    const isCallbackEndpoint =
+      req.path.includes("_callback") || req.originalUrl.includes("_callback");
     const active = isSubscriptionActive(currentTenant.start_date, currentTenant.end_date);
 
-    if (!active) {
+    if (!active && !isCallbackEndpoint) {
       const lang = (req.query.lang as string) || (req.headers["lang"] as string) || "en";
 
       // Fetch all packages from central database

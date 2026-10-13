@@ -20,3 +20,7 @@ export * from "./zones";
 export * from "./addresses";
 export * from "./languages";
 export * from "./admins";
+export * from "./gedia";
+export * from "./paymob";
+export * from "./kashier";
+export * from "./fawry";

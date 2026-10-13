@@ -36,3 +36,7 @@ __exportStar(require("./zones"), exports);
 __exportStar(require("./addresses"), exports);
 __exportStar(require("./languages"), exports);
 __exportStar(require("./admins"), exports);
+__exportStar(require("./gedia"), exports);
+__exportStar(require("./paymob"), exports);
+__exportStar(require("./kashier"), exports);
+__exportStar(require("./fawry"), exports);

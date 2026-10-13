@@ -19,6 +19,10 @@ import productsRouter from "./products";
 import attributesRouter from "./attributes";
 import popupsRouter from "./popups";
 import adminsRouter from "./admins";
+import gediaRouter from "./gedia";
+import paymobRouter from "./paymob";
+import kashierRouter from "./kashier";
+import fawryRouter from "./fawry";
 import uploadRouter from "../upload";
 
 const router = Router();
@@ -45,6 +49,10 @@ router.use("/products", productsRouter);
 router.use("/attributes", attributesRouter);
 router.use("/popups", popupsRouter);
 router.use("/admins", adminsRouter);
+router.use("/gedia", gediaRouter);
+router.use("/paymob", paymobRouter);
+router.use("/kashier", kashierRouter);
+router.use("/fawry", fawryRouter);
 router.use("/upload", uploadRouter);
 
 export default router;
