@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const db_1 = require("../../models/db");
-const schema_1 = require("../../models/schema");
+const admins_1 = require("../../models/central/admins");
 const drizzle_orm_1 = require("drizzle-orm");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const seed = {
@@ -21,12 +21,12 @@ const seed = {
             },
         ];
         console.log("   📥 Saving Admin...");
-        await db_1.db.insert(schema_1.admins).values(adminsData);
+        await db_1.db.insert(admins_1.admins).values(adminsData);
         console.log("   🚀 Completed! Seeded default admin.");
     },
     async rollback() {
         console.log("   🗑️ Rolling back seeded admin...");
-        await db_1.db.delete(schema_1.admins).where((0, drizzle_orm_1.eq)(schema_1.admins.email, "admin@admin.com"));
+        await db_1.db.delete(admins_1.admins).where((0, drizzle_orm_1.eq)(admins_1.admins.email, "admin@admin.com"));
         console.log("   ✅ Rollback completed successfully.");
     },
 };

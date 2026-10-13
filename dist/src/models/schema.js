@@ -14,9 +14,5 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// Central Schema Models
-__exportStar(require("./central/users"), exports);
-__exportStar(require("./central/packages"), exports);
-__exportStar(require("./central/paymentMethods"), exports);
-__exportStar(require("./central/admins"), exports);
-__exportStar(require("./central/orders"), exports);
+// Tenant Schema Models (Multi-Tenancy Wildcard Schemas)
+__exportStar(require("./tenant"), exports);
