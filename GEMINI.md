@@ -63,13 +63,13 @@ Always follow these rules automatically across all conversations in this project
 
 ## 6. Tenant Schema Models (`src/models/tenant/`)
 Each table in a separate file in `E:\SubAdminECommerce\src\models\tenant/`:
-`customers.ts`, `categories.ts`, `brands.ts`, `discounts.ts`, `flashDiscounts.ts`, `popups.ts`, `warranties.ts`, `taxes.ts`, `roles.ts`, `permissions.ts`, `staff.ts`, `paymentMethods.ts`, `products.ts`, `attributes.ts`, `values.ts`, `productAttributes.ts`, `productValues.ts`, `cities.ts`, `zones.ts`, `addresses.ts`, `languages.ts`.
+`customers.ts`, `categories.ts`, `brands.ts`, `discounts.ts`, `flashDiscounts.ts`, `popups.ts`, `warranties.ts`, `taxes.ts`, `roles.ts`, `permissions.ts`, `staff.ts`, `paymentMethods.ts`, `products.ts`, `attributes.ts`, `values.ts`, `productAttributes.ts`, `productValues.ts`, `cities.ts`, `zones.ts`, `addresses.ts`, `languages.ts`, `admins.ts`.
 Re-exported in `src/models/tenant/index.ts` and `src/models/schema.ts`.
 
 ## 7. Multi-Tenant Schema Synchronization & Migration Rules
 - **Canonical Table Definitions (`TENANT_TABLE_DEFINITIONS`)**:
   - Located in `src/services/tenantSchemaService.ts` in both projects.
-  - Acts as the single source of truth for all 21 tenant tables.
+  - Acts as the single source of truth for all 22 tenant tables.
   - Whenever any model, table, or column in `E:\SubAdminECommerce\src\models\tenant/` is added, modified, or removed:
     1. ALWAYS update `TENANT_TABLE_DEFINITIONS` in `src/services/tenantSchemaService.ts` in both projects.
     2. This guarantees that **new tenant schemas** created via `createTenantSchema(subdomain)` immediately receive the latest structure.

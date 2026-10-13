@@ -19,3 +19,4 @@ export * from "./cities";
 export * from "./zones";
 export * from "./addresses";
 export * from "./languages";
+export * from "./admins";
