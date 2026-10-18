@@ -940,3 +940,60 @@ export async function migrateAllTenants(): Promise<MigrationSummary[]> {
 
   return summaries;
 }
+
+/**
+ * 4. Rename tenant schema in MySQL by creating new database, moving tables, and dropping old database.
+ */
+export async function renameTenantSchema(
+  oldSubdomain: string,
+  newSubdomain: string
+): Promise<void> {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.query("SET FOREIGN_KEY_CHECKS = 0;");
+
+    // 1. Create the new schema
+    await connection.query(
+      `CREATE DATABASE IF NOT EXISTS \`${newSubdomain}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+    );
+
+    // 2. Fetch all tables from the old schema
+    const [rows] = (await connection.query(`SHOW TABLES FROM \`${oldSubdomain}\`;`)) as any[];
+
+    if (Array.isArray(rows) && rows.length > 0) {
+      for (const row of rows) {
+        const tableName = Object.values(row)[0] as string;
+        await connection.query(
+          `RENAME TABLE \`${oldSubdomain}\`.\`${tableName}\` TO \`${newSubdomain}\`.\`${tableName}\`;`
+        );
+      }
+    }
+
+    // 3. Drop old schema
+    await connection.query(`DROP DATABASE IF EXISTS \`${oldSubdomain}\`;`);
+
+    await connection.query("SET FOREIGN_KEY_CHECKS = 1;");
+  } catch (error) {
+    console.error(`Error renaming schema from "${oldSubdomain}" to "${newSubdomain}":`, error);
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * 5. Delete tenant database/schema when a tenant user is removed.
+ */
+export async function deleteTenantSchema(subdomain: string): Promise<void> {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.query(`DROP DATABASE IF EXISTS \`${subdomain}\`;`);
+  } catch (error) {
+    console.error(`Error deleting schema for subdomain "${subdomain}":`, error);
+    throw error;
+  } finally {
+    connection.release();
+  }
+}

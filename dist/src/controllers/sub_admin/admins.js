@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.loginTenantAdmin = void 0;
 exports.getAllAdmins = getAllAdmins;
 exports.getAdminsLists = getAdminsLists;
 exports.getAdminsSelection = getAdminsSelection;
@@ -11,13 +12,11 @@ exports.createAdmin = createAdmin;
 exports.updateAdmin = updateAdmin;
 exports.deleteAdmin = deleteAdmin;
 exports.bulkDeleteAdmins = bulkDeleteAdmins;
-exports.loginTenantAdmin = loginTenantAdmin;
 const schema_1 = require("../../models/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const Errors_1 = require("../../Errors");
 const response_1 = require("../../utils/response");
-const auth_1 = require("../../utils/auth");
 const pagination_1 = require("../../utils/pagination");
 // 1. Get All Admins (Paginated, includes role_name, excludes password)
 async function getAllAdmins(req, res) {
@@ -216,51 +215,6 @@ async function bulkDeleteAdmins(req, res) {
         deletedCount: existing.length,
     }, 200);
 }
-// 9. Admin Login (verifies email, password, and status = true strictly against admin table)
-async function loginTenantAdmin(req, res) {
-    const db = req.db;
-    const { email, password } = req.body;
-    const adminRows = await db
-        .select({
-        id: schema_1.admins.id,
-        name: schema_1.admins.name,
-        email: schema_1.admins.email,
-        phone: schema_1.admins.phone,
-        password: schema_1.admins.password,
-        role_id: schema_1.admins.role_id,
-        role_name: schema_1.roles.name,
-        status: schema_1.admins.status,
-    })
-        .from(schema_1.admins)
-        .leftJoin(schema_1.roles, (0, drizzle_orm_1.eq)(schema_1.admins.role_id, schema_1.roles.id))
-        .where((0, drizzle_orm_1.eq)(schema_1.admins.email, email))
-        .limit(1);
-    if (!adminRows[0]) {
-        throw new Errors_1.UnauthorizedError("Invalid email or password");
-    }
-    if (!adminRows[0].status) {
-        throw new Errors_1.UnauthorizedError("Your admin account is inactive. Please contact the administrator.");
-    }
-    const match = await bcrypt_1.default.compare(password, adminRows[0].password);
-    if (!match) {
-        throw new Errors_1.UnauthorizedError("Invalid email or password");
-    }
-    const token = (0, auth_1.generateAdminToken)({
-        id: adminRows[0].id,
-        name: adminRows[0].name,
-        email: adminRows[0].email,
-        phone: adminRows[0].phone,
-    });
-    return (0, response_1.SuccessResponse)(res, {
-        message: "Admin login successful",
-        token,
-        admin: {
-            id: adminRows[0].id,
-            name: adminRows[0].name,
-            email: adminRows[0].email,
-            phone: adminRows[0].phone,
-            role_id: adminRows[0].role_id,
-            role_name: adminRows[0].role_name,
-        },
-    }, 200);
-}
+// 9. Admin Login (verifies email or phone, password, and status = true strictly against admin table)
+var login_1 = require("../auth/login");
+Object.defineProperty(exports, "loginTenantAdmin", { enumerable: true, get: function () { return login_1.loginTenantAdmin; } });
