@@ -900,9 +900,24 @@ export async function migrateAllTenants(): Promise<MigrationSummary[]> {
 
   try {
     const centralDbName = process.env.DB_CENTRAL_NAME || process.env.DB_NAME || "systigo";
-    const [users] = (await connection.query(
-      `SELECT subdomain FROM \`${centralDbName}\`.\`users\` WHERE subdomain IS NOT NULL;`
-    )) as any[];
+    let users: any[] = [];
+    try {
+      const [rows] = (await connection.query(
+        `SELECT subdomain FROM \`${centralDbName}\`.\`users\` WHERE subdomain IS NOT NULL;`
+      )) as any[];
+      users = rows;
+    } catch (err: any) {
+      if (err.code === "ER_NO_SUCH_TABLE" || err.errno === 1146) {
+        console.error(`\n❌ Error: Table '${centralDbName}.users' does not exist.`);
+        console.error(`   👉 Reasons & Fixes:`);
+        console.error(`   1. Central database tables have not been created yet.`);
+        console.error(`      Run "npm run migrate-db" in the Central project (ECommerce) to create the central tables.`);
+        console.error(`   2. The database name in .env is incorrect.`);
+        console.error(`      Check DB_NAME or DB_CENTRAL_NAME in your .env file (e.g. should it be "wegostores" instead of "wegostore"?).\n`);
+        return [];
+      }
+      throw err;
+    }
 
     if (!Array.isArray(users) || users.length === 0) {
       console.log("No tenant users found in central database.");
