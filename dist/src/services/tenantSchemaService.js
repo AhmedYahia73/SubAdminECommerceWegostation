@@ -4,6 +4,8 @@ exports.TENANT_TABLE_DEFINITIONS = void 0;
 exports.createTenantSchema = createTenantSchema;
 exports.migrateTenantSchema = migrateTenantSchema;
 exports.migrateAllTenants = migrateAllTenants;
+exports.renameTenantSchema = renameTenantSchema;
+exports.deleteTenantSchema = deleteTenantSchema;
 const db_1 = require("../models/db");
 /**
  * Canonical Table Definitions for All 21 Tenant Tables.
@@ -827,7 +829,23 @@ async function migrateAllTenants() {
     const summaries = [];
     try {
         const centralDbName = process.env.DB_CENTRAL_NAME || process.env.DB_NAME || "systigo";
-        const [users] = (await connection.query(`SELECT subdomain FROM \`${centralDbName}\`.\`users\` WHERE subdomain IS NOT NULL;`));
+        let users = [];
+        try {
+            const [rows] = (await connection.query(`SELECT subdomain FROM \`${centralDbName}\`.\`users\` WHERE subdomain IS NOT NULL;`));
+            users = rows;
+        }
+        catch (err) {
+            if (err.code === "ER_NO_SUCH_TABLE" || err.errno === 1146) {
+                console.error(`\n❌ Error: Table '${centralDbName}.users' does not exist.`);
+                console.error(`   👉 Reasons & Fixes:`);
+                console.error(`   1. Central database tables have not been created yet.`);
+                console.error(`      Run "npm run migrate-db" in the Central project (ECommerce) to create the central tables.`);
+                console.error(`   2. The database name in .env is incorrect.`);
+                console.error(`      Check DB_NAME or DB_CENTRAL_NAME in your .env file (e.g. should it be "wegostores" instead of "wegostore"?).\n`);
+                return [];
+            }
+            throw err;
+        }
         if (!Array.isArray(users) || users.length === 0) {
             console.log("No tenant users found in central database.");
             return [];
@@ -858,4 +876,49 @@ async function migrateAllTenants() {
         connection.release();
     }
     return summaries;
+}
+/**
+ * 4. Rename tenant schema in MySQL by creating new database, moving tables, and dropping old database.
+ */
+async function renameTenantSchema(oldSubdomain, newSubdomain) {
+    const connection = await db_1.pool.getConnection();
+    try {
+        await connection.query("SET FOREIGN_KEY_CHECKS = 0;");
+        // 1. Create the new schema
+        await connection.query(`CREATE DATABASE IF NOT EXISTS \`${newSubdomain}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
+        // 2. Fetch all tables from the old schema
+        const [rows] = (await connection.query(`SHOW TABLES FROM \`${oldSubdomain}\`;`));
+        if (Array.isArray(rows) && rows.length > 0) {
+            for (const row of rows) {
+                const tableName = Object.values(row)[0];
+                await connection.query(`RENAME TABLE \`${oldSubdomain}\`.\`${tableName}\` TO \`${newSubdomain}\`.\`${tableName}\`;`);
+            }
+        }
+        // 3. Drop old schema
+        await connection.query(`DROP DATABASE IF EXISTS \`${oldSubdomain}\`;`);
+        await connection.query("SET FOREIGN_KEY_CHECKS = 1;");
+    }
+    catch (error) {
+        console.error(`Error renaming schema from "${oldSubdomain}" to "${newSubdomain}":`, error);
+        throw error;
+    }
+    finally {
+        connection.release();
+    }
+}
+/**
+ * 5. Delete tenant database/schema when a tenant user is removed.
+ */
+async function deleteTenantSchema(subdomain) {
+    const connection = await db_1.pool.getConnection();
+    try {
+        await connection.query(`DROP DATABASE IF EXISTS \`${subdomain}\`;`);
+    }
+    catch (error) {
+        console.error(`Error deleting schema for subdomain "${subdomain}":`, error);
+        throw error;
+    }
+    finally {
+        connection.release();
+    }
 }
